@@ -111,16 +111,15 @@ class _AllMonthesDataState extends State<AllMonthesData> {
                       isExpanded = !isExpanded;
                     }),
                 icon: Icon(isExpanded ? Icons.expand_more : Icons.expand_less)),
-            (firstItem == null || firstItem!.date.month == currentDate.month )
+            (firstItem == null || firstItem!.date.month == currentDate.month)
                 ? Center(child: Text('data'.tr))
                 : Expanded(
                     child: GridView.builder(
                       shrinkWrap: true,
                       scrollDirection: Axis.vertical,
                       gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                              crossAxisCount: 2)
-                              ,
+                          const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2),
                       // clipBehavior: Clip.none,
                       itemCount: builderCount(firstItem, currentDate),
                       itemBuilder: (context, index) {
@@ -132,6 +131,9 @@ class _AllMonthesDataState extends State<AllMonthesData> {
 
                         return InkWell(
                           highlightColor: Colors.transparent,
+                          focusColor: Colors.transparent,
+                          hoverColor: Colors.transparent,
+                          splashColor: Colors.transparent,
                           onTap: () => Navigator.push(
                             context,
                             PageRouteBuilder(

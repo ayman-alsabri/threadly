@@ -433,7 +433,7 @@ class FirebaseData with ChangeNotifier {
       'workerId': map['userId'].toString(),
       'id': (paidAllLength + 1).toString(),
       'date': _paidNotification!.date.toIso8601String(),
-      //amountSpent was by mistake but im too lazy to corret it because it needs deployment again
+      //amountSpent was by mistake, but im too lazy to corret it because it needs deployment again
       'amountSpent': amount.toString(),
       'token': map['shopToken'],
       'message': ok
@@ -447,6 +447,9 @@ class FirebaseData with ChangeNotifier {
         'date': _paidNotification!.date.toIso8601String(),
       },
     });
+    // .then((value) => {
+    //   _fireStore.collection('users').doc(map['shopName'].toString()).collection('workers').doc(map['userId'].toString()).collection('work').where(field)
+    // });
     if (ok) {
       await _theDatabase.insert('paidAll', {
         'amount': amount,

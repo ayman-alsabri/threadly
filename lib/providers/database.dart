@@ -16,6 +16,7 @@ class TheDatabase {
   static late String userName;
   static final FirebaseMessaging firebaseMessaging = FirebaseMessaging.instance;
   static final FirebaseAuth firebaseAuth = FirebaseAuth.instance;
+  static late bool firstInit;
   static late final String databasePath;
 
   static Future<void> databaseOpenner() async {
@@ -27,7 +28,7 @@ class TheDatabase {
       version: 1,
       onCreate: (datab, version) async {
         await datab.execute(
-            'CREATE TABLE user (id INTEGER PRIMARY KEY , userId INTEGER , value INTEGER , paymentAmount INTEGER ,shopToken STRING , name STRING , shopName STRING , localCode STRING , themeMode STRING , theme STRING)');
+            'CREATE TABLE user (id INTEGER PRIMARY KEY , userId INTEGER , value INTEGER , paymentAmount INTEGER ,shopToken STRING , name STRING , shopName STRING , localCode STRING , themeMode STRING , theme STRING ,firstInit INTEGER)');
         await datab.execute(
             'CREATE TABLE types (id INTEGER PRIMARY KEY , price INTEGER , name STRING , isFavorite INTEGER)');
         await datab.execute(
@@ -46,11 +47,15 @@ class TheDatabase {
               '${Get.deviceLocale?.languageCode}_${Get.deviceLocale?.countryCode}',
           'themeMode': 'auto',
           'theme': 'blue',
+          'firstInit': 0
         });
       },
     );
 
     final userdata = (await theDatabase.query('user'))[0];
+
+    firstInit = userdata['firstInit'] == 0;
+
     localCode = userdata['localCode'] as String;
 
     userName = userdata['name'] as String;
@@ -119,6 +124,10 @@ class TheDatabase {
         themes = AppTheme.grey;
         break;
     }
+  }
+
+    static Future<void> updateFirstInit() async {
+    await theDatabase.update('user', {'firstInit': 1});
   }
 
   static Future<int> saveCredintials(Map<String, String?> userData) async {

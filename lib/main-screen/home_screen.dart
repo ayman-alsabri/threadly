@@ -30,10 +30,13 @@ class HomeScreen extends StatelessWidget {
     try {
       await workData.getFromLocalDatabase(false);
       await firebaseData.hasPaid();
-      firebaseData
-          .addWorkToFirebase()
-          .then((value) => firebaseData.getAndSetData())
-          .then((value) => workData.getFromLocalDatabase(true));
+      if (TheDatabase.firstInit) {
+        await firebaseData
+            .addWorkToFirebase()
+            .then((value) => firebaseData.getAndSetData())
+            .then((value) => workData.getFromLocalDatabase(true));
+        await TheDatabase.updateFirstInit();
+      }
       // await firebaseData.getAndSetData();
     } catch (e) {
       if (!context.mounted) return;
@@ -45,6 +48,23 @@ class HomeScreen extends StatelessWidget {
         ),
       );
     }
+    if (TheDatabase.firstInit) return;
+    firebaseData
+        .addWorkToFirebase()
+        .then((value) => firebaseData.getAndSetData())
+        .then((value) => workData.getFromLocalDatabase(true))
+        .catchError(
+      (error) {
+        if (!context.mounted) return;
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 2),
+            content: Text('no internet connection or internet is very slow'.tr),
+          ),
+        );
+      },
+    );
   }
 
   @override
@@ -321,6 +341,7 @@ class PaymentScreen extends StatelessWidget {
 @pragma('vm:entry-point')
 Future<void> onBackgroundMessageHandler(RemoteMessage message) async {
   Database theDatabase;
+  bool isArabic = true;
   String? title = message.notification?.title;
   String? body = message.notification?.body;
 
@@ -331,6 +352,9 @@ Future<void> onBackgroundMessageHandler(RemoteMessage message) async {
         await openDatabase('${await getDatabasesPath()}/statistics.db');
     // theDatabase = TheDatabase.theDatabase;
   }
+
+  isArabic = (((await theDatabase.query('user'))[0])['localCode'] as String)
+      .contains('ar');
 
   if (message.data.length == 2) {
     final orignalId = message.data['originalId'];
@@ -344,11 +368,21 @@ Future<void> onBackgroundMessageHandler(RemoteMessage message) async {
       await theDatabase.update('work_data', {'hasBeenSubmitted': 2},
           where: 'id=?', whereArgs: [orignalId]);
     }
-    title = delete == 1 ? 'تم رفض العمل' : 'تمت الموافقة على العمل';
+    title = delete == 1
+        ? isArabic
+            ? 'تم رفض العمل'
+            : 'work has been declined'
+        : isArabic
+            ? 'تمت الموافقة على العمل'
+            : 'work has been accepted';
 
     body = delete == 1
-        ? 'تم رفض العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال'
-        : 'تمت الموافقة على العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال';
+        ? isArabic
+            ? 'تم رفض العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال'
+            : 'your work: ${work['quantity']} ${work['typeName']} and amount  ${work['amountSpent']} ryals has been declined'
+        : isArabic
+            ? 'تمت الموافقة على العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال'
+            : 'your work: ${work['quantity']} ${work['typeName']} and amount  ${work['amountSpent']} ryals has been accepted';
   }
   if (message.data.length == 3) {
     await theDatabase.insert(
@@ -359,8 +393,10 @@ Future<void> onBackgroundMessageHandler(RemoteMessage message) async {
       },
       conflictAlgorithm: ConflictAlgorithm.replace,
     );
-    title = 'طلب تصفية الحساب';
-    body = ' تصفية الحساب بمبلغ ${message.data['amount']}';
+    title = isArabic ? 'طلب تصفية الحساب' : 'request for clearing the record';
+    body = isArabic
+        ? ' تصفية الحساب بمبلغ ${message.data['amount']}'
+        : 'clearitg the record with ${message.data['amount']}ryals';
   }
 
   if (message.data.length == 4) {
@@ -383,16 +419,31 @@ Future<void> onBackgroundMessageHandler(RemoteMessage message) async {
         {'id': id, 'price': price, 'name': name, 'isFavorite': 0},
       );
     }
-    title = edit == 1 ? 'تم تعديل سعر القطعة ($name)' : 'تمت اضافة نوع جديد';
-    body =
-        edit == 1 ? 'السعر الجديد $price' : 'النوع: $name , سعر القطعة: $price';
+    title = edit == 1
+        ? isArabic
+            ? 'تم تعديل سعر القطعة ($name)'
+            : 'type ($name) price has been updated'
+        : isArabic
+            ? 'تمت اضافة نوع جديد'
+            : 'new type added';
+    body = edit == 1
+        ? isArabic
+            ? 'السعر الجديد $price'
+            : '$price is the new price'
+        : isArabic
+            ? 'النوع: $name , سعر القطعة: $price'
+            : 'type name: $name , price: $price';
   }
   if (message.data.length == 1) {
     if (message.data['id'] == null) return;
     final id = int.parse(message.data['id']);
     await theDatabase.delete('work_data', where: 'id=?', whereArgs: [id]);
-    title = 'خطأ. لم يتم تسليم الطلب';
-    body = 'تأكد أن التطبيق مثبت لدى المستخدم';
+    title = isArabic
+        ? 'خطأ. لم يتم تسليم الطلب'
+        : 'ERROR. request has not been submitted';
+    body = isArabic
+        ? 'تأكد أن التطبيق مثبت لدى المستخدم'
+        : 'please make sure that the app is installed with the user';
   }
 
   await FlutterLocalNotificationsPlugin().show(
@@ -419,9 +470,10 @@ class _ValidHomeScreenState extends State<ValidHomeScreen>
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
     if (state == AppLifecycleState.resumed) {
-      Provider.of<FirebaseData>(context)
+      Provider.of<FirebaseData>(context, listen: false)
           .addWorkToFirebase()
-          .then((value) => _workdata.getFromLocalDatabase(true)).catchError((e)=> _workdata.getFromLocalDatabase(true));
+          .then((value) => _workdata.getFromLocalDatabase(true))
+          .catchError((e) => _workdata.getFromLocalDatabase(true));
     }
   }
 
@@ -438,8 +490,10 @@ class _ValidHomeScreenState extends State<ValidHomeScreen>
     FirebaseMessaging.onBackgroundMessage(onBackgroundMessageHandler);
     FirebaseMessaging.onMessage.listen((message) async {
       final theDatabase = TheDatabase.theDatabase;
+      bool isArabic = TheDatabase.localCode.contains('ar');
       String? title = message.notification?.title;
       String? body = message.notification?.body;
+
       if (message.data.length == 2) {
         final orignalId = message.data['originalId'];
         final work = (await theDatabase
@@ -452,11 +506,21 @@ class _ValidHomeScreenState extends State<ValidHomeScreen>
           await theDatabase.update('work_data', {'hasBeenSubmitted': 2},
               where: 'id=?', whereArgs: [orignalId]);
         }
-        title = 'تمت الموافقة على العمل';
+        title = delete == 1
+            ? isArabic
+                ? 'تم رفض العمل'
+                : 'work has been declined'
+            : isArabic
+                ? 'تمت الموافقة على العمل'
+                : 'work has been accepted';
 
         body = delete == 1
-            ? 'تم رفض العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال'
-            : 'تمت الموافقة على العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال';
+            ? isArabic
+                ? 'تم رفض العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال'
+                : 'your work: ${work['quantity']} ${work['typeName']} and amount  ${work['amountSpent']} ryals has been declined'
+            : isArabic
+                ? 'تمت الموافقة على العمل: ${work['quantity']} ${work['typeName']} ومبلغ  ${work['amountSpent']} ريال'
+                : 'your work: ${work['quantity']} ${work['typeName']} and amount  ${work['amountSpent']} ryals has been accepted';
       }
       if (message.data.length == 3) {
         await theDatabase.insert(
@@ -467,8 +531,11 @@ class _ValidHomeScreenState extends State<ValidHomeScreen>
           },
           conflictAlgorithm: ConflictAlgorithm.replace,
         );
-        title = 'طلب تصفية الحساب';
-        body = ' تصفية الحساب بمبلغ ${message.data['amount']}';
+        title =
+            isArabic ? 'طلب تصفية الحساب' : 'request for clearing the record';
+        body = isArabic
+            ? ' تصفية الحساب بمبلغ ${message.data['amount']}'
+            : 'clearitg the record with ${message.data['amount']}ryals';
       }
 
       if (message.data.length == 4) {
@@ -491,11 +558,20 @@ class _ValidHomeScreenState extends State<ValidHomeScreen>
             {'id': id, 'price': price, 'name': name, 'isFavorite': 0},
           );
         }
-        title =
-            edit == 1 ? 'تم تعديل سعر القطعة ($name)' : 'تمت اضافة نوع جديد';
+        title = edit == 1
+            ? isArabic
+                ? 'تم تعديل سعر القطعة ($name)'
+                : 'type ($name) price has been updated'
+            : isArabic
+                ? 'تمت اضافة نوع جديد'
+                : 'new type added';
         body = edit == 1
-            ? 'السعر الجديد $price'
-            : ':النوع $name,سعر القطعة: $price';
+            ? isArabic
+                ? 'السعر الجديد $price'
+                : '$price is the new price'
+            : isArabic
+                ? 'النوع: $name , سعر القطعة: $price'
+                : 'type name: $name , price: $price';
       }
       if (message.data.length == 1) {
         if (message.data['id'] == null) return;
@@ -505,8 +581,12 @@ class _ValidHomeScreenState extends State<ValidHomeScreen>
           where: 'id=?',
           whereArgs: [id],
         );
-        title = 'خطأ. لم يتم تسليم الطلب';
-        body = 'تأكد أن التطبيق مثبت لدى المستخدم';
+        title = isArabic
+            ? 'خطأ. لم يتم تسليم الطلب'
+            : 'ERROR. request has not been submitted';
+        body = isArabic
+            ? 'تأكد أن التطبيق مثبت لدى المستخدم'
+            : 'please make sure that the app is installed with the user';
       }
 
       FlutterLocalNotificationsPlugin().show(
